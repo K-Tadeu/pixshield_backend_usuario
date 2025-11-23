@@ -2,9 +2,12 @@
 const express = require('express');
 const bodyParser=require('body-parser');
 const mysql = require('mysql2');
- 
+const cors = require('cors')
+const jwt = require('jsonwebtoken');
 //criar a conexão com o banco de dados
- 
+
+
+
  
 const db=mysql.createConnection({
     host:'localhost', //127.0.0.1
@@ -26,9 +29,12 @@ db.connect((err)=>{
 }
 );
  
+const JWT_SECRET = 'chave_secreta';
 //Criar o App
  
 var app=express();
+
+app.use(cors())
 app.use(bodyParser.json());
  
 //Rota inicial
@@ -87,21 +93,44 @@ app.get('/usuarios/:id_usuario',(req, res)=>{
 });
 
 app.post('/usuarios/login/', (req, res)=>{
-    var {email_usuario, senha_usuario}=req.body;
-    if(!email_usuario || ! senha_usuario){
+    var {email_usuario, senha_usuario} = req.body;
+    
+    if(!email_usuario || !senha_usuario){
         return res.status(400).json({erro:'Email e Senha são obrigatórios'});
     }
-    var sql='SELECT * FROM usuarios WHERE email_usuario=? and senha_usuario=?';
-    db.query(sql,[email_usuario, senha_usuario],(err, results)=>{
+    var sql='SELECT * FROM usuarios WHERE email_usuario=? AND senha_usuario=?';
+    
+    db.query(sql, [email_usuario, senha_usuario], (err, results)=>{
         if(err){
-            console.error('Erro ao buscar usuário:',err);
+            console.error('Erro ao buscar usuário:', err);
             return res.status(500).json({erro:'Erro ao buscar usuário no banco de dados'});
         }
-        if(results.length===0){
-            return res.status(404).json({mensagem:'Usuário não encontrado ou credenciais inválidas'});
+        
+        if(results.length === 0){
+            return res.status(401).json({mensagem:'Credenciais inválidas.'}); 
         }
         
-        res.json({mensagem:'Login realizado com sucesso'});
+        const user = results[0];
+
+        const payload = {
+            id_usuario: user.id_usuario,
+            email_usuario: user.email_usuario,
+
+        };
+
+        const token = jwt.sign(payload, JWT_SECRET, {
+            expiresIn: '5h'
+        });
+        
+        res.json({
+            mensagem: 'Login realizado com sucesso',
+            token: token, 
+            user: {
+                 id_usuario: user.id_usuario,
+                 nome_usuario: user.nome_usuario,
+                 email_usuario: user.email_usuario,
+            }
+        });
     });
 });
  
